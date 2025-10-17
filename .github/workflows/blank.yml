@@ -1,0 +1,40 @@
+name: desktop
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+    - name: Download frpc
+      run: |
+        Invoke-WebRequest https://github.com/fatedier/frp/releases/download/v0.64.0/frp_0.64.0_windows_amd64.zip -OutFile frp.zip
+    - name: Extract frpc
+      run: Expand-Archive frp.zip
+    - name: Create frpc config
+      run: |
+        @"
+        serverAddr = "47.94.210.246"
+        serverPort = 5443
+        loginFailExit = true
+        log.to = "./frpc.log"
+        log.level = "info"
+        log.maxDays = 3
+        auth.method = "token"
+        auth.token = "Ozrt9mkWxq6tFNkt"
+
+        [[proxies]]
+        name = "github桌面"
+        type = "tcp"
+        localIP = "127.0.0.1"
+        localPort = 3389
+        remotePort = 3389
+        "@ | Out-File -FilePath frpc.toml -Encoding utf8
+    - name: Enable Remote Desktop
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+        Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "远程连接密码" -Force)
+    - name: Start frpc tunnel
+      run: .\frp\frp_0.64.0_windows_amd64\frpc.exe -c frpc.toml
